@@ -462,9 +462,70 @@ img, svg, video, canvas, iframe, table, pre { max-width: 100%; }
 /* nos modos de edição (E) e desenho (P) os botões saem de cena */
 body.me-on .nav-slide, body.md-on .nav-slide { display: none; }
 @media print { .nav-slide { display: none; } }
+
+/* ---------- celular e tablet (telas de toque) ----------
+   As setas saem de dentro do slide: um par único, fixo, na faixa
+   preta que sobra fora do quadro 16:9. Nada muda no computador. */
+#nav-toque { display: none; }
+@media (hover: none) and (pointer: coarse) {
+    .nav-slide { display: none !important; }
+    #nav-toque {
+        position: fixed; z-index: 50; display: flex; gap: 10px;
+        right: max(6px, env(safe-area-inset-right));
+    }
+    #nav-toque button {
+        width: 40px; height: 40px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--mira-icon-bg); border: 2px solid var(--mira-primary);
+        color: var(--mira-primary); font: 700 22px/1 'Inter', sans-serif;
+        padding: 0 0 3px; box-shadow: 0 0 12px var(--mira-glow-strong);
+    }
+    #nav-toque button:disabled { opacity: .25; }
+    /* tela mais larga que 16:9 (celular deitado): faixas nas laterais */
+    @media (min-aspect-ratio: 16/9) {
+        #nav-toque { top: 50%; transform: translateY(-50%); flex-direction: column;
+            right: max(4px, calc((100vw - 100vh * 16 / 9) / 4 - 20px)); }
+    }
+    /* tela mais estreita que 16:9 (tablet, celular em pé): faixas em cima e embaixo */
+    @media (max-aspect-ratio: 16/9) {
+        #nav-toque { bottom: max(6px, calc((100vh - 100vw * 9 / 16) / 4 - 20px)); }
+    }
+    body.me-on #nav-toque, body.md-on #nav-toque { display: none; }
+}
+
+/* aviso para girar o celular: só em tela de toque, em pé */
+#aviso-girar { display: none; }
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+    #aviso-girar:not(.fechado) {
+        display: flex; position: fixed; inset: 0; z-index: 100000;
+        flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+        padding: 32px; text-align: center; background: rgba(0, 0, 0, .94);
+        color: var(--mira-text); font-family: 'Inter', sans-serif;
+    }
+}
+#aviso-girar .icone { width: 64px; height: 64px; animation: girar-aviso 2.4s ease-in-out infinite; }
+@keyframes girar-aviso { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+#aviso-girar strong { font-size: 22px; line-height: 1.25; }
+#aviso-girar span { font-size: 15px; color: var(--mira-text-soft); line-height: 1.45; }
+#aviso-girar button {
+    margin-top: 6px; padding: 10px 20px; border-radius: 999px; cursor: pointer;
+    background: transparent; border: 1px solid var(--mira-card-border);
+    color: var(--mira-text-soft); font: 600 14px 'Inter', sans-serif;
+}
 </style>
 </head>
 <body>
+
+<!-- aviso para girar o celular (só aparece em tela de toque, em pé) -->
+<div id="aviso-girar" role="dialog" aria-label="Gire o celular">
+    <svg class="icone" viewBox="0 0 64 64" fill="none" stroke="#FF904D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="20" y="6" width="24" height="44" rx="4"/><line x1="29" y1="43" x2="35" y2="43"/>
+        <path d="M50 30 a18 18 0 0 1 -6 22" /><path d="M42 48 l2 4 l4 -1"/>
+    </svg>
+    <strong>Gire o celular para a horizontal</strong>
+    <span>Os slides são 16:9 e ficam bem maiores deitados.<br>Navegue pelas setas ‹ › ou deslizando a tela.</span>
+    <button type="button" id="aviso-girar-ok">Continuar assim</button>
+</div>
 
 <!-- === SLIDE 1 · CAPA ===
      domínio rua (faixa de protesto) | rasgar | faixas retangulares | duas colunas | queda | acumulação com colapso -->
@@ -2277,6 +2338,44 @@ body.me-on .nav-slide, body.md-on .nav-slide { display: none; }
 })();
 </script>
 
+
+<script>
+/* setas fixas para telas de toque e aviso de girar o celular */
+(function () {
+    'use strict';
+    var secs = Array.prototype.slice.call(document.querySelectorAll('body > section'));
+    function atual() {
+        var meio = window.innerHeight / 2, achado = 0;
+        secs.forEach(function (s, i) { var r = s.getBoundingClientRect(); if (r.top <= meio && r.bottom > meio) achado = i; });
+        return achado;
+    }
+    var nav = document.createElement('div');
+    nav.id = 'nav-toque';
+    var bts = [['‹', -1, 'Slide anterior'], ['›', 1, 'Próximo slide']].map(function (b) {
+        var bt = document.createElement('button');
+        bt.type = 'button'; bt.textContent = b[0]; bt.title = b[2]; bt.setAttribute('aria-label', b[2]);
+        bt.addEventListener('click', function () {
+            var i = Math.max(0, Math.min(secs.length - 1, atual() + b[1]));
+            secs[i].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        nav.appendChild(bt);
+        return bt;
+    });
+    document.body.appendChild(nav);
+    function estado() { var i = atual(); bts[0].disabled = i === 0; bts[1].disabled = i === secs.length - 1; }
+    window.addEventListener('scroll', estado, { passive: true });
+    window.addEventListener('load', estado);
+    estado();
+
+    var aviso = document.getElementById('aviso-girar');
+    var ok = document.getElementById('aviso-girar-ok');
+    try { if (sessionStorage.getItem('aviso-girar') === 'fechado') aviso.classList.add('fechado'); } catch (e) {}
+    if (ok) ok.addEventListener('click', function () {
+        aviso.classList.add('fechado');
+        try { sessionStorage.setItem('aviso-girar', 'fechado'); } catch (e) {}
+    });
+})();
+</script>
 
 <script>
 /* ==============================================================
